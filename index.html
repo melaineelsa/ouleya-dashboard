@@ -466,14 +466,22 @@ async function start(){
     $('#modeInfo').textContent = 'Mode démo : données gardées dans ce navigateur seulement. Configurez Supabase pour partager avec votre sœur.';
     $('#app').classList.remove('hidden'); await loadScript('formules.js'); loadAll(); return;
   }
-  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  // Pas de verrou partagé entre onglets : un onglet bloqué ne doit jamais bloquer les autres.
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { lock: async (_name, _timeout, fn) => await fn() } });
   $('#modeInfo').textContent = 'Données partagées (Supabase)';
   const showApp = async session => {
     if(session){ $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#userBox').classList.remove('hidden');
       $('#userEmail').textContent = session.user.email; await loadAll(); }
     else { unloadRD(); setFormulas({}); $('#app').classList.add('hidden'); $('#userBox').classList.add('hidden'); $('#login').classList.remove('hidden'); }
   };
-  const { data } = await sb.auth.getSession(); await showApp(data.session);
+  let session = null;
+  try{
+    const t = new Promise((_, rej)=>setTimeout(()=>rej(new Error('délai dépassé')), 10000));
+    ({ data: { session } } = await Promise.race([sb.auth.getSession(), t]));
+  }catch(e){
+    $('#loginMsg').innerHTML = '<div class="msg err">La connexion met trop de temps à répondre. Fermez les autres onglets du site, rechargez la page, ou reconnectez-vous ci-dessous.</div>';
+  }
+  await showApp(session);
   // Ne jamais appeler Supabase directement dans ce rappel (risque de blocage) : on le reporte avec setTimeout.
   // INITIAL_SESSION est déjà traité par getSession ci-dessus ; TOKEN_REFRESHED ne change rien à l'affichage.
   sb.auth.onAuthStateChange((ev, session)=>{ if(ev==='INITIAL_SESSION' || ev==='TOKEN_REFRESHED') return; setTimeout(()=>showApp(session), 0); });
