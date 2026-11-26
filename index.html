@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OULEYA — Gestion de l'atelier</title>
+<style>
+  :root{--primary:#8B4A2B;--primary-dark:#5E3019;--green:#2F5D3A;--gold:#E3A21A;--cream:#F4EDE1;--bg:#FBF8F2;--border:#E6DCCB;--text:#2D241E;--muted:#6E5F55;--red:#b91c1c;--red-bg:#fee2e2;--ok-bg:#dcfce7;--ok:#15803d;--amber-bg:#fef3c7}
+  *{box-sizing:border-box;min-width:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--text);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--primary-dark),var(--primary) 55%,var(--green));color:#fff;padding:1rem 1.25rem;border-bottom:4px solid var(--gold);display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}
+  header h1{margin:0;font-size:1.35rem}
+  header small{opacity:.9}
+  nav{display:flex;flex-wrap:wrap;gap:.35rem;background:var(--cream);padding:.6rem 1rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+  nav button{border:1px solid var(--border);background:#fff;padding:.55rem .9rem;border-radius:8px;font-weight:600;cursor:pointer;min-height:44px;font-size:.9rem}
+  nav button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  main{max-width:1180px;margin:1.25rem auto;padding:0 1rem 3rem}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.2rem;margin-bottom:1.1rem}
+  h2{margin:0 0 .75rem;color:var(--primary);font-size:1.2rem}
+  h3{margin:1rem 0 .4rem;color:var(--green);font-size:1rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem}
+  .kpi{background:#faf6f0;border:1px solid var(--border);border-radius:10px;padding:.9rem;text-align:center}
+  .kpi b{display:block;font-size:1.4rem;color:var(--primary)}
+  .kpi span{font-size:.82rem;color:var(--muted)}
+  .kpi.alert b{color:var(--red)}
+  form.inline{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;align-items:end}
+  label{font-size:.82rem;color:var(--muted);display:block}
+  input,select,textarea{width:100%;padding:.5rem .6rem;border:1px solid #cbbba8;border-radius:6px;font-size:16px;min-height:40px;background:#fff}
+  .btn{background:var(--green);color:#fff;border:0;border-radius:6px;padding:.55rem 1rem;font-weight:700;cursor:pointer;min-height:42px}
+  .btn.light{background:#fff;color:var(--primary);border:1px solid var(--primary)}
+  .btn.small{min-height:32px;padding:.25rem .6rem;font-size:.82rem}
+  .del{background:none;border:0;color:var(--red);font-weight:700;cursor:pointer;font-size:1rem;min-width:32px;min-height:32px}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:.6rem}
+  th,td{padding:.5rem .55rem;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+  th{background:var(--cream);color:var(--primary-dark);white-space:nowrap}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.75rem;font-weight:700;white-space:nowrap}
+  .b-ok{background:var(--ok-bg);color:var(--ok)}.b-warn{background:var(--amber-bg);color:#92400e}.b-bad{background:var(--red-bg);color:var(--red)}
+  .note{font-size:.84rem;color:var(--muted)}
+  .msg{padding:.7rem 1rem;border-radius:8px;margin:.6rem 0;font-size:.9rem;border-left:4px solid var(--gold);background:#fffbeb}
+  .msg.err{border-color:var(--red);background:#fef2f2}.msg.ok{border-color:var(--green);background:#f0f7f1}
+  .bar{height:14px;background:var(--green);border-radius:3px}
+  .barrow{display:grid;grid-template-columns:70px 1fr 90px;gap:.5rem;align-items:center;font-size:.85rem;margin:.25rem 0}
+  .hidden{display:none!important}
+  #login{max-width:420px;margin:3rem auto}
+  iframe{width:100%;height:80vh;border:1px solid var(--border);border-radius:10px;background:#fff}
+  @media(max-width:600px){.stack thead{display:none}.stack tr{display:grid;padding:.5rem 0;border-bottom:1px solid var(--border)}.stack td{border:0;padding:.15rem 0;display:flex;gap:.5rem;text-align:left}.stack td::before{content:attr(data-l);min-width:7.5em;color:var(--muted);font-size:.8rem}.stack td.num{text-align:left}}
+</style>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<header>
+  <div><h1>ATELIER OULEYA — Gestion</h1><small id="modeInfo"></small></div>
+  <div id="userBox" class="hidden"><small id="userEmail"></small> <button class="btn light small" id="logoutBtn">Déconnexion</button></div>
+</header>
+
+<section id="login" class="card hidden">
+  <h2>Connexion</h2>
+  <p class="note">Entrez votre courriel : vous recevrez un lien de connexion. Seuls les courriels autorisés dans Supabase ont accès aux données.</p>
+  <form id="loginForm"><label>Courriel<input type="email" id="loginEmail" required></label><p><button class="btn">Recevoir le lien</button></p></form>
+  <div id="loginMsg"></div>
+</section>
+
+<div id="app" class="hidden">
+<nav id="nav">
+  <button data-tab="home" class="active">Accueil</button>
+  <button data-tab="stock">Stocks</button>
+  <button data-tab="lots">Lots</button>
+  <button data-tab="sales">Ventes & pertes</button>
+  <button data-tab="orders">Commandes</button>
+  <button data-tab="rd">Dashboard R&D</button>
+</nav>
+<main>
+  <div id="flash"></div>
+
+  <!-- ACCUEIL -->
+  <section data-panel="home">
+    <div class="card"><h2>Vue d'ensemble</h2><div class="grid" id="kpis"></div></div>
+    <div class="card"><h2>Chiffre d'affaires par mois</h2><div id="caChart"></div><p class="note">CA = ventes brutes. Marge brute = CA − frais de vente − pertes (avant coût des matières et de votre temps).</p></div>
+    <div class="card"><h2>À surveiller</h2><div id="watch"></div></div>
+  </section>
+
+  <!-- STOCKS -->
+  <section data-panel="stock" class="hidden">
+    <div class="card">
+      <h2>Stocks de matières premières</h2>
+      <div class="scroll"><table class="stack"><thead><tr><th>Matière</th><th class="num">Stock</th><th class="num">Seuil</th><th>État</th><th>Fournisseur</th><th class="num">$/g</th><th>Mouvement</th></tr></thead><tbody id="stockBody"></tbody></table></div>
+      <p class="note">Le stock baisse automatiquement quand un lot est enregistré. Pour une réception, entrez une quantité positive (ex. 4000 pour 4 kg) ; pour une perte, une quantité négative.</p>
+    </div>
+    <div class="card">
+      <h3>Ajouter une matière</h3>
+      <form class="inline" id="ingForm">
+        <label>Clé (sans espace)<input name="key" required placeholder="ex. frag_coco"></label>
+        <label>Nom<input name="name" required></label>
+        <label>Unité<input name="unit" value="g"></label>
+        <label>Seuil d'alerte<input name="alert_at" type="number" step="any" value="0"></label>
+        <label>Fournisseur<input name="supplier"></label>
+        <label>Coût $/unité<input name="cost_per_unit" type="number" step="any" value="0"></label>
+        <button class="btn">Ajouter</button>
+      </form>
+    </div>
+    <div class="card"><h3>Derniers mouvements</h3><div class="scroll"><table class="stack"><thead><tr><th>Date</th><th>Matière</th><th class="num">Quantité</th><th>Raison</th><th>Réf.</th><th>Par</th></tr></thead><tbody id="moveBody"></tbody></table></div></div>
+  </section>
+
+  <!-- LOTS -->
+  <section data-panel="lots" class="hidden">
+    <div class="card">
+      <h2>Nouveau lot</h2>
+      <form class="inline" id="lotForm">
+        <label>Date<input type="date" name="made_on" required></label>
+        <label>Formule<select name="formula" id="lotFormula"></select></label>
+        <label>Poids du lot (g)<input type="number" name="weight_g" value="300" min="1" required></label>
+        <label>Méthode de fonte<select name="method"><option>A — Fonte douce</option><option>B — Fonte complète ~75 °C</option><option>Sans objet (huile)</option></select></label>
+        <label>Net / pot (g)<input type="number" name="fill_g" step="0.1"></label>
+        <label>Pots obtenus<input type="number" name="pots" step="1"></label>
+        <label style="grid-column:1/-1">Notes<input name="notes" placeholder="fournisseur du karité, texture…"></label>
+        <button class="btn">Enregistrer et déduire le stock</button>
+      </form>
+      <div id="lotPreview" class="note"></div>
+    </div>
+    <div class="card"><h2>Journal des lots</h2><div class="scroll"><table class="stack"><thead><tr><th>N° de lot</th><th>Date</th><th>Formule</th><th class="num">Lot</th><th>Fonte</th><th class="num">Pots</th><th>Stabilité</th><th>Notes</th><th>Par</th></tr></thead><tbody id="lotBody"></tbody></table></div></div>
+  </section>
+
+  <!-- VENTES & PERTES -->
+  <section data-panel="sales" class="hidden">
+    <div class="card">
+      <h2>Nouvelle vente</h2>
+      <form class="inline" id="saleForm">
+        <label>Date<input type="date" name="sold_on" required></label>
+        <label>Produit<select name="product" id="saleProduct"></select></label>
+        <label>Format<select name="format"><option>Pot 100 g</option><option>Pot 250 g</option><option>Découverte 30 g</option><option>Échantillon 15 g</option><option>Flacon 100 ml</option><option>Coffret</option></select></label>
+        <label>Quantité<input type="number" name="qty" value="1" min="1" required></label>
+        <label>Prix unitaire ($)<input type="number" name="unit_price" step="0.01" required></label>
+        <label>Frais ($)<input type="number" name="fees" step="0.01" value="0"></label>
+        <label>Canal<input name="channel" placeholder="proches, Facebook, marché…"></label>
+        <label>N° de lot<input name="lot_code"></label>
+        <button class="btn">Ajouter la vente</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Nouvelle perte</h2>
+      <form class="inline" id="lossForm">
+        <label>Date<input type="date" name="lost_on" required></label>
+        <label>Article<input name="item" required placeholder="ex. Jolie Kadi 100 g"></label>
+        <label>Quantité<input type="number" name="qty" step="any" value="1"></label>
+        <label>Unité<input name="unit" value="pot"></label>
+        <label>Valeur perdue ($)<input type="number" name="cost" step="0.01" value="0"></label>
+        <label>Raison<select name="reason"><option>Échantillon offert</option><option>Grains / texture</option><option>Fonte / chaleur</option><option>Casse</option><option>Raté de fabrication</option><option>Périmé</option><option>Autre</option></select></label>
+        <button class="btn">Ajouter la perte</button>
+      </form>
+    </div>
+    <div class="card"><h2>Ventes</h2><div class="scroll"><table class="stack"><thead><tr><th>Date</th><th>Produit</th><th>Format</th><th class="num">Qté</th><th class="num">Prix</th><th class="num">Total</th><th class="num">Frais</th><th>Canal</th><th>Lot</th><th></th></tr></thead><tbody id="saleBody"></tbody></table></div></div>
+    <div class="card"><h2>Pertes</h2><div class="scroll"><table class="stack"><thead><tr><th>Date</th><th>Article</th><th class="num">Qté</th><th class="num">Valeur</th><th>Raison</th><th></th></tr></thead><tbody id="lossBody"></tbody></table></div></div>
+  </section>
+
+  <!-- COMMANDES -->
+  <section data-panel="orders" class="hidden">
+    <div class="card">
+      <h2>Nouvelle commande fournisseur</h2>
+      <form class="inline" id="orderForm">
+        <label>Fournisseur<input name="supplier" required list="supplierList"></label>
+        <label style="grid-column:span 2">Articles<input name="items" required placeholder="ex. Karité brut 4 kg"></label>
+        <label>Montant ($)<input type="number" name="amount" step="0.01" value="0"></label>
+        <label>Statut<select name="status" id="orderStatusNew"></select></label>
+        <label>Commandée le<input type="date" name="ordered_on"></label>
+        <label>Prévue le<input type="date" name="expected_on"></label>
+        <label style="grid-column:1/-1">Notes<input name="notes"></label>
+        <button class="btn">Ajouter</button>
+      </form>
+      <datalist id="supplierList"><option>Karité Delapointe</option><option>ONESOAK</option><option>La Boîte à Grains</option><option>IKEA Boucherville</option><option>Walmart Brossard</option><option>Voyageur Soap & Candle</option><option>Coop Coco & Calendula</option></datalist>
+    </div>
+    <div class="card"><h2>Suivi des commandes</h2><div class="scroll"><table class="stack"><thead><tr><th>Fournisseur</th><th>Articles</th><th class="num">Montant</th><th>Statut</th><th>Commandée</th><th>Prévue</th><th>Reçue</th><th>Notes</th><th></th></tr></thead><tbody id="orderBody"></tbody></table></div>
+      <p class="note">Quand une commande passe à « Reçue », pensez à ajouter les quantités dans l'onglet Stocks.</p></div>
+  </section>
+
+  <!-- R&D -->
+  <section data-panel="rd" class="hidden">
+    <div class="card"><h2>Dashboard R&D (formulations, fournisseurs, coûts)</h2>
+      <p class="note" id="rdNote">Version de référence, en lecture (fichier privé, chargé depuis Supabase après connexion). <a href="#" id="rdOpen" target="_blank">Ouvrir dans un nouvel onglet</a>.</p>
+      <iframe id="rdFrame" title="Dashboard R&D OULEYA"></iframe></div>
+  </section>
+</main>
+</div>
+
+<script>
+{
+/* ================= Formules : privées, chargées après connexion ================= */
+// Les vraies formules ne sont PAS dans ce fichier public.
+// En ligne : table "formulas" de Supabase, lisible seulement par les courriels autorisés
+//            (remplie avec le fichier privé formules-privees.sql).
+// Mode démo : fichier local formules.js (exclu de GitHub) ou, à défaut, une formule fictive.
+const EXAMPLE_FORMULAS = { exemple: { name: "Exemple (formule fictive)", code: "EX", items: { shea: 70, almond: 28, vite: 2 } } };
+let FORMULAS = {};
+function setFormulas(f){
+  FORMULAS = f || {};
+  $('#lotFormula').innerHTML = Object.entries(FORMULAS).map(([k,x])=>`<option value="${esc(k)}">${esc(x.name)}</option>`).join('');
+  $('#saleProduct').innerHTML = Object.values(FORMULAS).map(x=>`<option>${esc(x.name)}</option>`).join('') + '<option>Coffret Saint-Valentin</option><option>Autre</option>';
+}
+async function loadFormulas(){
+  if(!LIVE){ setFormulas(window.OULEYA_FORMULAS || EXAMPLE_FORMULAS); return; }
+  const { data, error } = await sb.from('formulas').select('key,name,code,items').order('sort',{ascending:true});
+  if(error) throw error;
+  setFormulas(Object.fromEntries(data.map(r=>[r.key, { name:r.name, code:r.code, items:r.items }])));
+}
+function loadScript(src){ return new Promise(r=>{ const s=document.createElement('script'); s.src=src; s.onload=s.onerror=()=>r(); document.head.appendChild(s); }); }
+const STAB = ['En test','OK','Grains','Trop mou / fond','Odeur changée','Séparation','Rejeté'];
+const ORDER_STATUS = ['À commander','Commandée','Expédiée','Reçue','Annulée'];
+
+/* ================= Utilitaires ================= */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (n, d=0) => Number(n||0).toLocaleString('fr-CA',{minimumFractionDigits:d,maximumFractionDigits:d});
+const money = n => num(n,2) + ' $';
+const today = () => { const t = new Date(); t.setMinutes(t.getMinutes()-t.getTimezoneOffset()); return t.toISOString().slice(0,10); };
+const formData = f => Object.fromEntries(new FormData(f).entries());
+function flash(msg, kind='ok'){ const el=$('#flash'); el.innerHTML=`<div class="msg ${kind}">${esc(msg)}</div>`; setTimeout(()=>{ if(el.firstChild) el.innerHTML=''; }, 4000); }
+function cleanRow(o){ const r={}; for(const k in o){ r[k] = o[k]==='' ? null : o[k]; } return r; }
+
+/* ================= Couche de données : Supabase ou démo locale ================= */
+const CFG = window.OULEYA_CONFIG || {};
+const LIVE = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
+let sb = null;
+
+const SEED_ING = [
+  ['shea','Beurre de karité brut (Burkina Faso)',800,'Karité Delapointe'],['calendula','Macérât de calendula',150,'ONESOAK'],
+  ['almond',"Huile d'amande douce",120,'ONESOAK'],['oat',"Huile d'avoine",50,'Les Âmes Fleurs'],['jojoba','Huile de jojoba',40,'ONESOAK'],
+  ['castor','Huile de ricin',40,'ONESOAK'],['baobab','Huile de baobab',40,'ONESOAK'],['grapeseed','Huile de pépins de raisin',100,'ONESOAK'],
+  ['arrowroot',"Amidon d'arrow-root",20,'ONESOAK'],['vite','Vitamine E (tocophérol)',5,'ONESOAK'],['frag_mango','Fragrance mangue',3,'ONESOAK'],
+  ['frag_hibiscus','Fragrance hibiscus & goyave',3,'ONESOAK'],['frag_vanilla','Fragrance vanille',3,'ONESOAK'],['frag_soft','Fragrance douce (capillaire)',3,'ONESOAK'],
+  ['eo_ginger','Huile essentielle de gingembre',2,'ONESOAK']
+];
+const local = {
+  key: 'ouleya_cms_demo_v1',
+  load(){ let d=null; try{ d=JSON.parse(localStorage.getItem(this.key)); }catch(e){}
+    if(!d){ d={ seq:100, ingredients: SEED_ING.map((r,i)=>({id:i+1,key:r[0],name:r[1],unit:'g',qty:0,alert_at:r[2],supplier:r[3],cost_per_unit:0})),
+      stock_movements:[], lots:[], sales:[], losses:[], orders:[] }; }
+    return d; },
+  save(d){ try{ localStorage.setItem(this.key, JSON.stringify(d)); }catch(e){} },
+  me: 'démo'
+};
+const db = {
+  async list(table, order='created_at', asc=false){
+    if(LIVE){ const {data,error} = await sb.from(table).select('*').order(order,{ascending:asc}); if(error) throw error; return data; }
+    const d = local.load(); const rows=[...d[table]]; rows.sort((a,b)=> (a[order]>b[order]?1:-1)*(asc?1:-1)); return rows;
+  },
+  async insert(table, row){
+    if(LIVE){ const {error} = await sb.from(table).insert(row); if(error) throw error; return; }
+    const d = local.load(); d[table].push({ ...row, id: ++d.seq, created_at: new Date().toISOString(), created_by: local.me }); local.save(d);
+  },
+  async update(table, id, patch){
+    if(LIVE){ const {error} = await sb.from(table).update(patch).eq('id', id); if(error) throw error; return; }
+    const d = local.load(); const r = d[table].find(x=>x.id===id); if(r) Object.assign(r, patch); local.save(d);
+  },
+  async remove(table, id){
+    if(LIVE){ const {error} = await sb.from(table).delete().eq('id', id); if(error) throw error; return; }
+    const d = local.load(); d[table] = d[table].filter(x=>x.id!==id); local.save(d);
+  },
+  async createLot(lot, usage){
+    if(LIVE){ const {error} = await sb.rpc('create_lot', { lot, usage }); if(error) throw error; return; }
+    const d = local.load();
+    if(d.lots.some(l=>l.code===lot.code)) throw new Error('Ce numéro de lot existe déjà.');
+    d.lots.push({ ...lot, id: ++d.seq, stability:'En test', created_at:new Date().toISOString(), created_by:local.me });
+    for(const u of usage){ const ing=d.ingredients.find(i=>i.key===u.key); if(ing){ ing.qty -= u.grams;
+      d.stock_movements.push({id:++d.seq, ingredient_id:ing.id, delta:-u.grams, reason:'lot', ref:lot.code, created_at:new Date().toISOString(), created_by:local.me}); } }
+    local.save(d);
+  },
+  async moveStock(id, delta, reason, ref){
+    if(LIVE){ const {error} = await sb.rpc('move_stock', { p_ingredient:id, p_delta:delta, p_reason:reason, p_ref:ref }); if(error) throw error; return; }
+    const d = local.load(); const ing = d.ingredients.find(i=>i.id===id); if(ing){ ing.qty += delta;
+      d.stock_movements.push({id:++d.seq, ingredient_id:id, delta, reason, ref, created_at:new Date().toISOString(), created_by:local.me}); } local.save(d);
+  }
+};
+
+/* ================= État & rendu ================= */
+let S = { ingredients:[], stock_movements:[], lots:[], sales:[], losses:[], orders:[] };
+
+async function loadAll(){
+  try{
+    if(!Object.keys(FORMULAS).length) await loadFormulas();
+    const [ingredients, stock_movements, lots, sales, losses, orders] = await Promise.all([
+      db.list('ingredients','name',true), db.list('stock_movements'), db.list('lots','made_on'),
+      db.list('sales','sold_on'), db.list('losses','lost_on'), db.list('orders','created_at')]);
+    S = { ingredients, stock_movements, lots, sales, losses, orders };
+    renderAll();
+  }catch(e){ flash('Erreur de chargement : ' + e.message, 'err'); }
+}
+function renderAll(){ renderHome(); renderStock(); renderLots(); renderSales(); renderOrders(); }
+
+function stockState(i){ if(i.qty<=0) return '<span class="badge b-bad">Épuisé</span>'; if(i.qty<=i.alert_at) return '<span class="badge b-warn">À commander</span>'; return '<span class="badge b-ok">OK</span>'; }
+
+function renderHome(){
+  const ym = today().slice(0,7);
+  const monthSales = S.sales.filter(s=>String(s.sold_on).startsWith(ym));
+  const caMonth = monthSales.reduce((a,s)=>a+s.qty*s.unit_price,0);
+  const caTotal = S.sales.reduce((a,s)=>a+s.qty*s.unit_price,0);
+  const fees = S.sales.reduce((a,s)=>a+Number(s.fees||0),0);
+  const lossT = S.losses.reduce((a,l)=>a+Number(l.cost||0),0);
+  const potsSold = S.sales.reduce((a,s)=>a+Number(s.qty||0),0);
+  const low = S.ingredients.filter(i=>i.qty<=i.alert_at);
+  const openOrders = S.orders.filter(o=>!['Reçue','Annulée'].includes(o.status));
+  const inTest = S.lots.filter(l=>l.stability==='En test');
+  const k = [
+    [money(caMonth),"CA ce mois-ci"],[money(caTotal),"CA total"],[money(caTotal-fees-lossT),"Marge brute (CA − frais − pertes)"],
+    [num(potsSold),"Articles vendus"],[money(lossT),"Pertes cumulées"],[low.length,"Matières sous le seuil",low.length>0],
+    [openOrders.length,"Commandes en cours"],[inTest.length,"Lots en test de stabilité"]];
+  $('#kpis').innerHTML = k.map(([v,l,a])=>`<div class="kpi ${a?'alert':''}"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+
+  const byMonth = {};
+  for(const s of S.sales){ const m=String(s.sold_on).slice(0,7); byMonth[m]=(byMonth[m]||0)+s.qty*s.unit_price; }
+  const months = Object.keys(byMonth).sort().slice(-12); const max = Math.max(1,...months.map(m=>byMonth[m]));
+  $('#caChart').innerHTML = months.length ? months.map(m=>`<div class="barrow"><span>${esc(m)}</span><div class="bar" style="width:${(byMonth[m]/max*100).toFixed(1)}%"></div><span style="text-align:right">${esc(money(byMonth[m]))}</span></div>`).join('')
+    : '<p class="note">Aucune vente pour l\'instant.</p>';
+
+  const items = [];
+  low.forEach(i=>items.push(`<li><strong>${esc(i.name)}</strong> : ${esc(num(i.qty))} ${esc(i.unit)} (seuil ${esc(num(i.alert_at))}) — ${esc(i.supplier||'')}</li>`));
+  openOrders.forEach(o=>items.push(`<li>Commande <strong>${esc(o.supplier)}</strong> — ${esc(o.items)} : ${esc(o.status)}${o.expected_on?' (prévue le '+esc(o.expected_on)+')':''}</li>`));
+  inTest.forEach(l=>{ const days=Math.floor((new Date(today())-new Date(l.made_on))/86400000);
+    items.push(`<li>Lot <strong>${esc(l.code)}</strong> en test depuis ${days} jours${days>=42?' — <span class="badge b-warn">6 semaines : statuer</span>':''}</li>`); });
+  $('#watch').innerHTML = items.length ? `<ul>${items.join('')}</ul>` : '<p class="note">Rien à signaler.</p>';
+}
+
+function renderStock(){
+  $('#stockBody').innerHTML = S.ingredients.map(i=>`<tr>
+    <td data-l="Matière"><strong>${esc(i.name)}</strong><br><small class="note">${esc(i.key)}</small></td>
+    <td class="num" data-l="Stock">${esc(num(i.qty,1))} ${esc(i.unit)}</td>
+    <td class="num" data-l="Seuil">${esc(num(i.alert_at))}</td>
+    <td data-l="État">${stockState(i)}</td>
+    <td data-l="Fournisseur">${esc(i.supplier||'')}</td>
+    <td class="num" data-l="$/g">${esc(num(i.cost_per_unit,4))}</td>
+    <td data-l="Mouvement"><form class="mv" data-id="${i.id}" style="display:flex;gap:.3rem"><input type="number" step="any" name="delta" placeholder="+ / −" style="width:90px" required><select name="reason" style="width:auto"><option>réception</option><option>perte</option><option>ajustement</option></select><button class="btn small">OK</button></form></td>
+  </tr>`).join('') || '<tr><td colspan="7" class="note">Aucune matière.</td></tr>';
+  const names = Object.fromEntries(S.ingredients.map(i=>[i.id,i.name]));
+  $('#moveBody').innerHTML = S.stock_movements.slice(0,40).map(m=>`<tr>
+    <td data-l="Date">${esc(String(m.created_at).slice(0,10))}</td><td data-l="Matière">${esc(names[m.ingredient_id]||'?')}</td>
+    <td class="num" data-l="Quantité">${m.delta>0?'+':''}${esc(num(m.delta,1))}</td><td data-l="Raison">${esc(m.reason)}</td>
+    <td data-l="Réf.">${esc(m.ref||'')}</td><td data-l="Par">${esc(m.created_by||'')}</td></tr>`).join('') || '<tr><td colspan="6" class="note">Aucun mouvement.</td></tr>';
+}
+
+function lotCode(){
+  const f = FORMULAS[$('#lotFormula').value]; const d = $('#lotForm').elements.made_on.value; if(!f||!d) return '';
+  const prefix = 'OUL-' + f.code + '-' + d.replace(/-/g,'').slice(2);
+  const n = S.lots.filter(l=>String(l.code).startsWith(prefix)).length + 1;
+  return prefix + '-' + String(n).padStart(2,'0');
+}
+function lotUsage(){
+  const f = FORMULAS[$('#lotFormula').value]; const w = Number($('#lotForm').elements.weight_g.value)||0;
+  if(!f) return [];
+  return Object.entries(f.items).map(([key,pct])=>({ key, grams: Math.round(w*pct/100*10)/10 }));
+}
+function previewLot(){
+  const usage = lotUsage(); const byKey = Object.fromEntries(S.ingredients.map(i=>[i.key,i]));
+  const parts = usage.map(u=>{ const ing=byKey[u.key]; const short = ing && ing.qty < u.grams;
+    return `${esc(ing?ing.name:u.key)} : ${esc(num(u.grams,1))} g${short?' <span class="badge b-bad">stock insuffisant</span>':''}`; });
+  $('#lotPreview').innerHTML = `<p><strong>N° de lot : ${esc(lotCode()||'—')}</strong></p><p>Sera déduit du stock : ${parts.join(' • ')}</p>`;
+}
+function renderLots(){
+  $('#lotBody').innerHTML = S.lots.map(l=>`<tr>
+    <td data-l="N° de lot"><strong>${esc(l.code)}</strong></td><td data-l="Date">${esc(l.made_on)}</td><td data-l="Formule">${esc(l.formula)}</td>
+    <td class="num" data-l="Lot">${esc(num(l.weight_g))} g</td><td data-l="Fonte">${esc(l.method||'')}</td><td class="num" data-l="Pots">${esc(l.pots??'—')}</td>
+    <td data-l="Stabilité"><select class="stab" data-id="${l.id}">${STAB.map(s=>`<option ${s===l.stability?'selected':''}>${esc(s)}</option>`).join('')}</select></td>
+    <td data-l="Notes">${esc(l.notes||'')}</td><td data-l="Par">${esc(l.created_by||'')}</td></tr>`).join('') || '<tr><td colspan="9" class="note">Aucun lot.</td></tr>';
+  previewLot();
+}
+function renderSales(){
+  $('#saleBody').innerHTML = S.sales.map(s=>`<tr>
+    <td data-l="Date">${esc(s.sold_on)}</td><td data-l="Produit">${esc(s.product)}</td><td data-l="Format">${esc(s.format||'')}</td>
+    <td class="num" data-l="Qté">${esc(s.qty)}</td><td class="num" data-l="Prix">${esc(money(s.unit_price))}</td>
+    <td class="num" data-l="Total"><strong>${esc(money(s.qty*s.unit_price))}</strong></td><td class="num" data-l="Frais">${esc(money(s.fees))}</td>
+    <td data-l="Canal">${esc(s.channel||'')}</td><td data-l="Lot">${esc(s.lot_code||'')}</td>
+    <td><button class="del" data-del="sales" data-id="${s.id}" title="Supprimer">✕</button></td></tr>`).join('') || '<tr><td colspan="10" class="note">Aucune vente.</td></tr>';
+  $('#lossBody').innerHTML = S.losses.map(l=>`<tr>
+    <td data-l="Date">${esc(l.lost_on)}</td><td data-l="Article">${esc(l.item)}</td><td class="num" data-l="Qté">${esc(num(l.qty,1))} ${esc(l.unit||'')}</td>
+    <td class="num" data-l="Valeur">${esc(money(l.cost))}</td><td data-l="Raison">${esc(l.reason||'')}</td>
+    <td><button class="del" data-del="losses" data-id="${l.id}" title="Supprimer">✕</button></td></tr>`).join('') || '<tr><td colspan="6" class="note">Aucune perte.</td></tr>';
+}
+function renderOrders(){
+  const cls = s => s==='Reçue'?'b-ok':s==='Annulée'?'b-bad':'b-warn';
+  $('#orderBody').innerHTML = S.orders.map(o=>`<tr>
+    <td data-l="Fournisseur"><strong>${esc(o.supplier)}</strong></td><td data-l="Articles">${esc(o.items)}</td><td class="num" data-l="Montant">${esc(money(o.amount))}</td>
+    <td data-l="Statut"><span class="badge ${cls(o.status)}">${esc(o.status)}</span><br><select class="ost" data-id="${o.id}">${ORDER_STATUS.map(s=>`<option ${s===o.status?'selected':''}>${esc(s)}</option>`).join('')}</select></td>
+    <td data-l="Commandée">${esc(o.ordered_on||'—')}</td><td data-l="Prévue">${esc(o.expected_on||'—')}</td><td data-l="Reçue">${esc(o.received_on||'—')}</td>
+    <td data-l="Notes">${esc(o.notes||'')}</td><td><button class="del" data-del="orders" data-id="${o.id}" title="Supprimer">✕</button></td></tr>`).join('') || '<tr><td colspan="9" class="note">Aucune commande.</td></tr>';
+}
+
+/* ================= Événements ================= */
+$('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active', x===b));
+  document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('hidden', p.dataset.panel!==b.dataset.tab));
+  if(b.dataset.tab==='rd') loadRD(); });
+
+/* ================= Dashboard R&D : fichier privé (Supabase Storage) ================= */
+// Le fichier dashboard.html n'est PAS sur GitHub. En ligne, il est téléchargé depuis le
+// bucket privé "prive" de Supabase, lisible seulement par les courriels de allowed_emails.
+// En mode démo (fichier ouvert sur votre ordinateur), on utilise le dashboard.html local.
+let rdUrl = null;
+async function loadRD(){
+  if(rdUrl) return;
+  if(!LIVE){ rdUrl = 'dashboard.html'; }
+  else {
+    const { data, error } = await sb.storage.from('prive').download('dashboard.html');
+    if(error || !data){
+      $('#rdNote').innerHTML = '<span class="msg err">Dashboard introuvable ou accès refusé. Vérifiez que dashboard.html est bien déposé dans le bucket « prive » de Supabase (voir README).</span>';
+      return;
+    }
+    rdUrl = URL.createObjectURL(new Blob([await data.text()], { type:'text/html' }));
+  }
+  $('#rdFrame').src = rdUrl; $('#rdOpen').href = rdUrl;
+}
+function unloadRD(){
+  if(rdUrl && rdUrl.startsWith('blob:')) URL.revokeObjectURL(rdUrl);
+  rdUrl = null; $('#rdFrame').removeAttribute('src'); $('#rdOpen').href = '#';
+}
+
+$('#orderStatusNew').innerHTML = ORDER_STATUS.map(s=>`<option>${esc(s)}</option>`).join('');
+['#lotForm [name=made_on]','#saleForm [name=sold_on]','#lossForm [name=lost_on]'].forEach(s=>{ $(s).value = today(); });
+$('#lotForm').addEventListener('input', previewLot);
+
+async function act(fn, okMsg){ try{ await fn(); flash(okMsg); await loadAll(); }catch(e){ flash('Erreur : ' + e.message, 'err'); } }
+
+$('#lotForm').addEventListener('submit', e=>{ e.preventDefault(); const d = formData(e.target); const code = lotCode();
+  if(!FORMULAS[d.formula]){ flash('Aucune formule chargée.', 'err'); return; }
+  const lot = { code, made_on:d.made_on, formula: FORMULAS[d.formula].name, weight_g:Number(d.weight_g), method:d.method, fill_g:d.fill_g, pots:d.pots, notes:d.notes };
+  act(()=>db.createLot(lot, lotUsage()), `Lot ${code} enregistré, stock mis à jour.`).then(()=>{ e.target.elements.notes.value=''; }); });
+
+$('#saleForm').addEventListener('submit', e=>{ e.preventDefault(); const d = cleanRow(formData(e.target));
+  d.qty=Number(d.qty); d.unit_price=Number(d.unit_price); d.fees=Number(d.fees||0);
+  act(()=>db.insert('sales', d), 'Vente ajoutée.'); });
+
+$('#lossForm').addEventListener('submit', e=>{ e.preventDefault(); const d = cleanRow(formData(e.target));
+  d.qty=Number(d.qty); d.cost=Number(d.cost||0); act(()=>db.insert('losses', d), 'Perte ajoutée.'); });
+
+$('#orderForm').addEventListener('submit', e=>{ e.preventDefault(); const d = cleanRow(formData(e.target)); d.amount=Number(d.amount||0);
+  if(d.status==='Reçue') d.received_on = today();
+  act(()=>db.insert('orders', d), 'Commande ajoutée.').then(()=>e.target.reset()); });
+
+$('#ingForm').addEventListener('submit', e=>{ e.preventDefault(); const d = cleanRow(formData(e.target));
+  d.alert_at=Number(d.alert_at||0); d.cost_per_unit=Number(d.cost_per_unit||0); d.qty=0;
+  act(()=>db.insert('ingredients', d), 'Matière ajoutée.').then(()=>e.target.reset()); });
+
+document.addEventListener('submit', e=>{ if(!e.target.classList.contains('mv')) return; e.preventDefault();
+  const id = Number(e.target.dataset.id); const delta = Number(e.target.elements.delta.value); const reason = e.target.elements.reason.value;
+  const signed = (reason==='perte' && delta>0) ? -delta : delta;
+  act(()=>db.moveStock(id, signed, reason, ''), 'Stock mis à jour.'); });
+
+document.addEventListener('change', e=>{
+  if(e.target.classList.contains('stab')) act(()=>db.update('lots', Number(e.target.dataset.id), { stability:e.target.value }), 'Stabilité mise à jour.');
+  if(e.target.classList.contains('ost')){ const patch = { status:e.target.value }; if(e.target.value==='Reçue') patch.received_on = today();
+    act(()=>db.update('orders', Number(e.target.dataset.id), patch), 'Statut mis à jour.'); }
+});
+document.addEventListener('click', e=>{ const b = e.target.closest('[data-del]'); if(!b) return;
+  if(b.dataset.confirm!=='1'){ b.dataset.confirm='1'; b.textContent='Sûr ?'; setTimeout(()=>{ b.dataset.confirm=''; b.textContent='✕'; }, 3000); return; }
+  act(()=>db.remove(b.dataset.del, Number(b.dataset.id)), 'Supprimé.'); });
+
+/* ================= Démarrage & connexion ================= */
+async function start(){
+  if(!LIVE){
+    $('#modeInfo').textContent = 'Mode démo : données gardées dans ce navigateur seulement. Configurez Supabase pour partager avec votre sœur.';
+    $('#app').classList.remove('hidden'); await loadScript('formules.js'); loadAll(); return;
+  }
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  $('#modeInfo').textContent = 'Données partagées (Supabase)';
+  const showApp = async session => {
+    if(session){ $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#userBox').classList.remove('hidden');
+      $('#userEmail').textContent = session.user.email; await loadAll(); }
+    else { unloadRD(); setFormulas({}); $('#app').classList.add('hidden'); $('#userBox').classList.add('hidden'); $('#login').classList.remove('hidden'); }
+  };
+  const { data } = await sb.auth.getSession(); await showApp(data.session);
+  sb.auth.onAuthStateChange((_ev, session)=>showApp(session));
+  $('#loginForm').addEventListener('submit', async e=>{ e.preventDefault();
+    const { error } = await sb.auth.signInWithOtp({ email: $('#loginEmail').value, options:{ emailRedirectTo: location.origin + location.pathname } });
+    $('#loginMsg').innerHTML = error ? `<div class="msg err">${esc(error.message)}</div>` : '<div class="msg ok">Lien envoyé. Ouvrez votre courriel sur cet appareil.</div>'; });
+  $('#logoutBtn').addEventListener('click', ()=>sb.auth.signOut());
+  // Mise à jour en direct quand votre sœur modifie quelque chose
+  sb.channel('ouleya').on('postgres_changes', { event:'*', schema:'public' }, ()=>loadAll()).subscribe();
+}
+start();
+}
+</script>
+</body>
+</html>
