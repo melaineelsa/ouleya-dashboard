@@ -226,7 +226,7 @@ let sb = null;
 const SEED_ING = [
   ['shea','Beurre de karité brut (Burkina Faso)',800,'Karité Delapointe'],['calendula','Macérât de calendula',150,'ONESOAK'],
   ['almond',"Huile d'amande douce",120,'ONESOAK'],['oat',"Huile d'avoine",50,'Les Âmes Fleurs'],['jojoba','Huile de jojoba',40,'ONESOAK'],
-  ['castor','Huile de ricin',40,'ONESOAK'],['baobab','Huile de baobab',40,'ONESOAK'],['grapeseed','Huile de pépins de raisin',100,'ONESOAK'],
+  ['castor','Huile de ricin',40,'ONESOAK'],['baobab','Huile de baobab',40,'ONESOAK'],['avocado',"Huile d'avocat",40,''],['grapeseed','Huile de pépins de raisin',100,'ONESOAK'],
   ['arrowroot',"Amidon d'arrow-root",20,'ONESOAK'],['vite','Vitamine E (tocophérol)',5,'ONESOAK'],['frag_mango','Fragrance mangue',3,'ONESOAK'],
   ['frag_hibiscus','Fragrance hibiscus & goyave',3,'ONESOAK'],['frag_vanilla','Fragrance vanille',3,'ONESOAK'],['frag_soft','Fragrance douce (capillaire)',3,'ONESOAK'],
   ['eo_ginger','Huile essentielle de gingembre',2,'ONESOAK']
@@ -394,17 +394,24 @@ $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(
 // Le fichier dashboard.html n'est PAS sur GitHub. En ligne, il est téléchargé depuis le
 // bucket privé "prive" de Supabase, lisible seulement par les courriels de allowed_emails.
 // En mode démo (fichier ouvert sur votre ordinateur), on utilise le dashboard.html local.
-let rdUrl = null;
+let rdUrl = null, rdLoading = false;
+const RD_NOTE = $('#rdNote').innerHTML;
 async function loadRD(){
-  if(rdUrl) return;
+  if(rdUrl || rdLoading) return;
   if(!LIVE){ rdUrl = 'dashboard.html'; }
   else {
-    const { data, error } = await sb.storage.from('prive').download('dashboard.html');
-    if(error || !data){
-      $('#rdNote').innerHTML = '<span class="msg err">Dashboard introuvable ou accès refusé. Vérifiez que dashboard.html est bien déposé dans le bucket « prive » de Supabase (voir README).</span>';
+    rdLoading = true;
+    $('#rdNote').innerHTML = 'Chargement du dashboard…';
+    try{
+      const timeout = new Promise((_, rej)=>setTimeout(()=>rej(new Error('délai dépassé')), 20000));
+      const { data, error } = await Promise.race([sb.storage.from('prive').download('dashboard.html'), timeout]);
+      if(error || !data) throw error || new Error('fichier vide');
+      rdUrl = URL.createObjectURL(new Blob([await data.text()], { type:'text/html' }));
+      $('#rdNote').innerHTML = RD_NOTE;
+    }catch(e){
+      $('#rdNote').innerHTML = `<span class="msg err">Impossible de charger le dashboard (${esc(e.message||e)}). Rechargez la page et réessayez.</span>`;
       return;
-    }
-    rdUrl = URL.createObjectURL(new Blob([await data.text()], { type:'text/html' }));
+    }finally{ rdLoading = false; }
   }
   $('#rdFrame').src = rdUrl; $('#rdOpen').href = rdUrl;
 }
@@ -467,7 +474,9 @@ async function start(){
     else { unloadRD(); setFormulas({}); $('#app').classList.add('hidden'); $('#userBox').classList.add('hidden'); $('#login').classList.remove('hidden'); }
   };
   const { data } = await sb.auth.getSession(); await showApp(data.session);
-  sb.auth.onAuthStateChange((_ev, session)=>showApp(session));
+  // Ne jamais appeler Supabase directement dans ce rappel (risque de blocage) : on le reporte avec setTimeout.
+  // INITIAL_SESSION est déjà traité par getSession ci-dessus ; TOKEN_REFRESHED ne change rien à l'affichage.
+  sb.auth.onAuthStateChange((ev, session)=>{ if(ev==='INITIAL_SESSION' || ev==='TOKEN_REFRESHED') return; setTimeout(()=>showApp(session), 0); });
   $('#loginForm').addEventListener('submit', async e=>{ e.preventDefault();
     const { error } = await sb.auth.signInWithOtp({ email: $('#loginEmail').value, options:{ emailRedirectTo: location.origin + location.pathname } });
     $('#loginMsg').innerHTML = error ? `<div class="msg err">${esc(error.message)}</div>` : '<div class="msg ok">Lien envoyé. Ouvrez votre courriel sur cet appareil.</div>'; });

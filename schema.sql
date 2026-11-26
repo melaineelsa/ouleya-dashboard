@@ -175,6 +175,7 @@ insert into ingredients (key, name, unit, alert_at, supplier) values
   ('jojoba',        'Huile de jojoba',                      'g', 40,  'ONESOAK'),
   ('castor',        'Huile de ricin',                       'g', 40,  'ONESOAK'),
   ('baobab',        'Huile de baobab',                      'g', 40,  'ONESOAK'),
+  ('avocado',       'Huile d''avocat',                      'g', 40,  null),
   ('grapeseed',     'Huile de pépins de raisin',            'g', 100, 'ONESOAK'),
   ('arrowroot',     'Amidon d''arrow-root',                 'g', 20,  'ONESOAK'),
   ('vite',          'Vitamine E (tocophérol)',              'g', 5,   'ONESOAK'),
