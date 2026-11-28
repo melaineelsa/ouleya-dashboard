@@ -44,7 +44,18 @@
   .barrow{display:grid;grid-template-columns:70px 1fr 90px;gap:.5rem;align-items:center;font-size:.85rem;margin:.25rem 0}
   .hidden{display:none!important}
   #login{max-width:420px;margin:3rem auto}
-  iframe{width:100%;height:80vh;border:1px solid var(--border);border-radius:10px;background:#fff}
+  #rdNote{margin:0 0 .25rem;text-align:right}
+  @media(max-width:600px){
+    header h1{font-size:1.15rem}
+    nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:.5rem .75rem}
+    nav::-webkit-scrollbar{display:none}
+    nav button{flex:0 0 auto}
+    main{padding:0 .75rem 2rem;margin-top:1rem}
+    .card{padding:1rem}
+    #rdNote{text-align:left}
+  }
+  /* PDF / impression : seulement le contenu, sans l'en-tête ni la navigation du site */
+  @media print{header,nav,#rdNote,#flash,#modeInfo{display:none!important}main{max-width:none;margin:0;padding:0}.card{break-inside:avoid-page}}
   @media(max-width:600px){.stack thead{display:none}.stack tr{display:grid;padding:.5rem 0;border-bottom:1px solid var(--border)}.stack td{border:0;padding:.15rem 0;display:flex;gap:.5rem;text-align:left}.stack td::before{content:attr(data-l);min-width:7.5em;color:var(--muted);font-size:.8rem}.stack td.num{text-align:left}}
 </style>
 <script src="config.js"></script>
@@ -177,9 +188,8 @@
 
   <!-- R&D -->
   <section data-panel="rd" class="hidden">
-    <div class="card"><h2>Dashboard R&D (formulations, fournisseurs, coûts)</h2>
-      <p class="note" id="rdNote">Version de référence, en lecture (fichier privé, chargé depuis Supabase après connexion). <a href="#" id="rdOpen" target="_blank">Ouvrir dans un nouvel onglet</a>.</p>
-      <iframe id="rdFrame" title="Dashboard R&D OULEYA"></iframe></div>
+    <p class="note" id="rdNote">Fichier privé, chargé depuis Supabase après connexion. <a href="#" id="rdOpen" target="_blank">Ouvrir seul dans un onglet</a></p>
+    <div id="rdHost"></div>
   </section>
 </main>
 </div>
@@ -323,7 +333,7 @@ function renderHome(){
 
 function renderStock(){
   $('#stockBody').innerHTML = S.ingredients.map(i=>`<tr>
-    <td data-l="Matière"><strong>${esc(i.name)}</strong><br><small class="note">${esc(i.key)}</small></td>
+    <td data-l="Matière"><span><strong>${esc(i.name)}</strong><br><small class="note">${esc(i.key)}</small></span></td>
     <td class="num" data-l="Stock">${esc(num(i.qty,1))} ${esc(i.unit)}</td>
     <td class="num" data-l="Seuil">${esc(num(i.alert_at))}</td>
     <td data-l="État">${stockState(i)}</td>
@@ -394,30 +404,82 @@ $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(
 // Le fichier dashboard.html n'est PAS sur GitHub. En ligne, il est téléchargé depuis le
 // bucket privé "prive" de Supabase, lisible seulement par les courriels de allowed_emails.
 // En mode démo (fichier ouvert sur votre ordinateur), on utilise le dashboard.html local.
-let rdUrl = null, rdLoading = false;
+let rdUrl = null, rdLoading = false, rdNS = null;
 const RD_NOTE = $('#rdNote').innerHTML;
+
+// Intègre le dashboard directement dans la page, dans une zone isolée (shadow DOM) :
+// ses styles et ses identifiants (lotPreview, lotFormula…) ne se mélangent pas à ceux du site.
+const RD_EMBED_CSS = `
+  :host{display:block}
+  header{display:none}
+  .container{margin-top:.5rem;padding-left:0;padding-right:0}
+  .tabs{position:static;border-radius:10px;border:1px solid var(--border)}
+  @media print{ header{display:block} }`;
+function mountDashboard(html){
+  // Les gestionnaires onclick/onchange/oninput sont renommés : ils sont branchés ci-dessous sur la zone isolée
+  const doc = new DOMParser().parseFromString(html.replace(/\son(click|change|input)="/g, ' data-on$1="'), 'text/html');
+  const host = $('#rdHost');
+  const root = host.shadowRoot || host.attachShadow({ mode: 'open' });
+  root.innerHTML = '';
+  const style = document.createElement('style');
+  style.textContent = [...doc.querySelectorAll('style')].map(s => s.textContent).join('\n')
+    .replace(/:root\b/g, ':host').replace(/(^|[\s,}])body\s*\{/g, '$1.dash-body {') + RD_EMBED_CSS;
+  root.appendChild(style);
+  const wrap = document.createElement('div'); wrap.className = 'dash-body';
+  [...doc.body.children].forEach(el => { if(el.tagName !== 'SCRIPT') wrap.appendChild(document.importNode(el, true)); });
+  root.appendChild(wrap);
+  // Le script du dashboard voit un « document » limité à sa zone
+  const code = [...doc.querySelectorAll('script')].map(s => s.textContent).join('\n');
+  const names = [...new Set([...code.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m => m[1]))];
+  const scoped = {
+    getElementById: id => root.getElementById(id),
+    querySelector: s => root.querySelector(s),
+    querySelectorAll: s => root.querySelectorAll(s),
+    createElement: (...a) => document.createElement(...a),
+    body: document.body
+  };
+  rdNS = new Function('document', code + '\n;return {' + names.join(',') + '};')(scoped);
+  if(!root._wired){
+    root._wired = true;
+    ['click', 'change', 'input'].forEach(type => root.addEventListener(type, e => {
+      const el = e.target.closest && e.target.closest('[data-on' + type + ']');
+      if(!el || !rdNS) return;
+      new Function('ns', 'event', 'with(ns){' + el.getAttribute('data-on' + type) + '}').call(el, rdNS, e);
+    }));
+  }
+}
+function mountFallbackFrame(src){
+  // Mode démo ouvert depuis le disque : le navigateur interdit de lire le fichier, on garde un cadre
+  $('#rdHost').innerHTML = `<iframe src="${src}" title="Dashboard R&D" style="width:100%;height:80vh;border:1px solid var(--border);border-radius:10px;background:#fff"></iframe>`;
+}
 async function loadRD(){
   if(rdUrl || rdLoading) return;
-  if(!LIVE){ rdUrl = 'dashboard.html'; }
-  else {
-    rdLoading = true;
-    $('#rdNote').innerHTML = 'Chargement du dashboard…';
-    try{
+  rdLoading = true;
+  $('#rdNote').innerHTML = 'Chargement du dashboard…';
+  try{
+    let html;
+    if(!LIVE){
+      try{ html = await (await fetch('dashboard.html')).text(); }
+      catch(_){ rdUrl = 'dashboard.html'; mountFallbackFrame(rdUrl); $('#rdOpen').href = rdUrl; $('#rdNote').innerHTML = RD_NOTE; return; }
+    } else {
       const timeout = new Promise((_, rej)=>setTimeout(()=>rej(new Error('délai dépassé')), 20000));
       const { data, error } = await Promise.race([sb.storage.from('prive').download('dashboard.html'), timeout]);
       if(error || !data) throw error || new Error('fichier vide');
-      rdUrl = URL.createObjectURL(new Blob([await data.text()], { type:'text/html' }));
-      $('#rdNote').innerHTML = RD_NOTE;
-    }catch(e){
-      $('#rdNote').innerHTML = `<span class="msg err">Impossible de charger le dashboard (${esc(e.message||e)}). Rechargez la page et réessayez.</span>`;
-      return;
-    }finally{ rdLoading = false; }
-  }
-  $('#rdFrame').src = rdUrl; $('#rdOpen').href = rdUrl;
+      html = await data.text();
+    }
+    rdUrl = URL.createObjectURL(new Blob([html], { type:'text/html' }));
+    mountDashboard(html);
+    $('#rdNote').innerHTML = RD_NOTE; $('#rdOpen').href = rdUrl;
+  }catch(e){
+    rdUrl = null;
+    $('#rdNote').innerHTML = `<span class="msg err">Impossible de charger le dashboard (${esc(e.message||e)}). Rechargez la page et réessayez.</span>`;
+  }finally{ rdLoading = false; }
 }
 function unloadRD(){
   if(rdUrl && rdUrl.startsWith('blob:')) URL.revokeObjectURL(rdUrl);
-  rdUrl = null; $('#rdFrame').removeAttribute('src'); $('#rdOpen').href = '#';
+  rdUrl = null; rdNS = null;
+  const host = $('#rdHost'); if(host.shadowRoot) host.shadowRoot.innerHTML = ''; host.innerHTML = '';
+  $('#rdNote').innerHTML = RD_NOTE;
 }
 
 $('#orderStatusNew').innerHTML = ORDER_STATUS.map(s=>`<option>${esc(s)}</option>`).join('');
