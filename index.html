@@ -463,9 +463,13 @@ async function loadRD(){
       catch(_){ rdUrl = 'dashboard.html'; mountFallbackFrame(rdUrl); $('#rdOpen').href = rdUrl; $('#rdNote').innerHTML = RD_NOTE; return; }
     } else {
       const timeout = new Promise((_, rej)=>setTimeout(()=>rej(new Error('délai dépassé')), 20000));
-      const { data, error } = await Promise.race([sb.storage.from('prive').download('dashboard.html'), timeout]);
-      if(error || !data) throw error || new Error('fichier vide');
-      html = await data.text();
+      // Lien temporaire (60 s, réservé à l'équipe) qui change à chaque fois : le navigateur
+      // ne peut pas resservir une ancienne copie après une mise à jour du dashboard.
+      const { data, error } = await Promise.race([sb.storage.from('prive').createSignedUrl('dashboard.html', 60), timeout]);
+      if(error || !data) throw error || new Error('fichier introuvable');
+      const res = await Promise.race([fetch(data.signedUrl, { cache: 'no-store' }), timeout]);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      html = await res.text();
     }
     rdUrl = URL.createObjectURL(new Blob([html], { type:'text/html' }));
     mountDashboard(html);
