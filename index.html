@@ -196,7 +196,7 @@ let FORMULAS = {};
 function setFormulas(f){
   FORMULAS = f || {};
   $('#lotFormula').innerHTML = Object.entries(FORMULAS).map(([k,x])=>`<option value="${esc(k)}">${esc(x.name)}</option>`).join('');
-  $('#saleProduct').innerHTML = Object.values(FORMULAS).map(x=>`<option>${esc(x.name)}</option>`).join('') + '<option>Coffret Saint-Valentin</option><option>Autre</option>';
+  $('#saleProduct').innerHTML = Object.values(FORMULAS).map(x=>`<option>${esc(x.name)}</option>`).join('') + '<option>Coffret Rituel</option><option>Coffret Saint-Valentin</option><option>Baya / chaîne de corps</option><option>Autre</option>';
 }
 async function loadFormulas(){
   if(!LIVE){ setFormulas(window.OULEYA_FORMULAS || EXAMPLE_FORMULAS); return; }
