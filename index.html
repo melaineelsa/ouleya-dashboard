@@ -55,7 +55,7 @@
     #rdNote{text-align:left}
   }
   /* PDF / impression : seulement le contenu, sans l'en-tête ni la navigation du site */
-  @media print{header,nav,#rdNote,#flash,#modeInfo{display:none!important}main{max-width:none;margin:0;padding:0}.card{break-inside:avoid-page}}
+  @media print{header,nav,#rdNote,#flash,#modeInfo{display:none!important}main{max-width:none;margin:0;padding:0}}
   @media(max-width:600px){.stack thead{display:none}.stack tr{display:grid;padding:.5rem 0;border-bottom:1px solid var(--border)}.stack td{border:0;padding:.15rem 0;display:flex;gap:.5rem;text-align:left}.stack td::before{content:attr(data-l);min-width:7.5em;color:var(--muted);font-size:.8rem}.stack td.num{text-align:left}}
 </style>
 <script src="config.js"></script>
