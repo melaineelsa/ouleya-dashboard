@@ -3,3 +3,5 @@ ouleya-cms.zip
 formules-privees.sql
 formules.js
 supabase/
+*.docx
+*.pdf
